@@ -25,7 +25,13 @@ public static class UserManager
         File.WriteAllText(FilePath, json);
     }
 
-    public static User? GetUser(string username) => _users.FirstOrDefault(u => u.Username == username);
+    public static User? GetUser(string username)
+    {
+        Console.WriteLine($"Looking for user: '{username}'");
+        var user = _users.FirstOrDefault(u => u.Username.Equals(username.Trim(), StringComparison.OrdinalIgnoreCase));
+        Console.WriteLine(user == null ? "User not found" : "User found");
+        return user;
+    }
 
     public static void AddUser(string username, string password)
     {

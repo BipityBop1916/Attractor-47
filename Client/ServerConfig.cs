@@ -4,9 +4,13 @@ using System.Text.Json;
 
 public class ServerConfig
 {
-    public string IP { get; set; }
-    public int Port { get; set; }
+    public string IP { get; set; } = "localhost";
+    public int Port { get; set; } = 11000;
+
+    public string Username { get; set; } = "";
+    public string Password { get; set; } = "";
 }
+
 
 public static class ConfigManager
 {

@@ -12,13 +12,55 @@ internal class ChatClient
         TcpClient? client = null;
         ServerConfig? config = ConfigManager.Load();
 
+        bool handshakeDone = false;
         if (config != null)
         {
-            Console.WriteLine($"found saved config: {config.IP}:{config.Port}");
+            Console.WriteLine($"Found saved config: {config.IP}:{config.Port}");
             client = await TryConnect(config.IP, config.Port);
+
+            if (client != null && !string.IsNullOrWhiteSpace(config.Username))
+            {
+                var stream = client.GetStream();
+                var reader = new StreamReader(stream, Encoding.Unicode);
+                var writer = new StreamWriter(stream, Encoding.Unicode);
+
+                while (true)
+                {
+                    string? serverMsg = await reader.ReadLineAsync();
+                    if (serverMsg == null)
+                    {
+                        Console.WriteLine("handshake failed: server disconnected.");
+                        client.Close();
+                        client = null;
+                        break;
+                    }
+
+                    if (serverMsg.StartsWith("enter username"))
+                    {
+                        await writer.WriteLineAsync(config.Username);
+                        await writer.FlushAsync();
+                    }
+                    else if (serverMsg.StartsWith("enter password:"))
+                    {
+                        await writer.WriteLineAsync(config.Password);
+                        await writer.FlushAsync();
+                    }
+                    else if (serverMsg == "ok")
+                    {
+                        handshakeDone = true;
+                        Console.WriteLine("logged in automatically");
+                    }
+                    else
+                    {
+                        Console.WriteLine(serverMsg);
+                    }
+
+                    if (handshakeDone) break;
+                }
+            }
         }
 
-        if (client == null)
+        if (!handshakeDone)
         {
             config = await PromptForConnection();
             if (config == null)
@@ -35,10 +77,7 @@ internal class ChatClient
             }
 
             ConfigManager.Save(config);
-        }
-        
-        try
-        {
+            
             var networkStream = client.GetStream();
             var reader = new StreamReader(networkStream, Encoding.Unicode);
             var writer = new StreamWriter(networkStream, Encoding.Unicode);
@@ -50,6 +89,17 @@ internal class ChatClient
                 client.Close();
                 return;
             }
+        }
+        
+        try
+        {
+            
+            var networkStream = client.GetStream();
+            var reader = new StreamReader(networkStream, Encoding.Unicode);
+            var writer = new StreamWriter(networkStream, Encoding.Unicode);
+            
+            Console.WriteLine(await reader.ReadLineAsync());
+            Console.WriteLine(await reader.ReadLineAsync());
             
             var receiveTask = ReceiveMessagesAsync(reader);
             var sendTask = SendMessagesAsync(writer);
@@ -88,7 +138,14 @@ internal class ChatClient
                 string[] splitMessage = message.Split(":", 2);
                 string timeStamp = DateTime.Now.ToString("HH:mm");
 
-                Console.WriteLine($"{splitMessage[0]} ({timeStamp}): {splitMessage[1]}");
+                if (splitMessage.Length == 2)
+                {
+                    Console.WriteLine($"{splitMessage[0]} ({timeStamp}): {splitMessage[1]}");
+                }
+                else
+                {
+                    Console.WriteLine($"{timeStamp}: {message}");
+                }
             }
             catch (Exception ex)
             {
@@ -147,6 +204,9 @@ internal class ChatClient
     {
         var handshakeTask = Task.Run(async () =>
         {
+            string? username = "";
+            string? password = "";
+            
             while (true)
             {
                 string? serverMessage = await reader.ReadLineAsync();
@@ -155,7 +215,7 @@ internal class ChatClient
                 if (serverMessage.StartsWith("enter username"))
                 {
                     Console.Write("username: ");
-                    string? username = Console.ReadLine();
+                    username = Console.ReadLine();
                     await writer.WriteLineAsync(username);
                     await writer.FlushAsync();
                 }
@@ -169,7 +229,7 @@ internal class ChatClient
                 else if (serverMessage.StartsWith("enter password"))
                 {
                     Console.Write("password: ");
-                    string? password = Console.ReadLine();
+                    password = Console.ReadLine();
                     await writer.WriteLineAsync(password);
                     await writer.FlushAsync();
                 }
@@ -183,6 +243,11 @@ internal class ChatClient
                     Console.WriteLine($"server: {serverMessage}");
                 }
             }
+            
+            ServerConfig? config = ConfigManager.Load();
+            config.Username = username;
+            config.Password = password;
+            ConfigManager.Save(config);
 
             string usersOnline = await reader.ReadLineAsync();
             Console.WriteLine(usersOnline);

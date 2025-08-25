@@ -33,6 +33,7 @@ class Client
             string? userName;
             User? user = null;
             int attempts = 0;
+            UserManager.Load();
 
             await Writer.WriteLineAsync("enter username:");
             await Writer.FlushAsync();
@@ -122,7 +123,8 @@ class Client
                 {
                     message = await Reader.ReadLineAsync();
                     if (string.IsNullOrWhiteSpace(message)) continue;
-                    Console.WriteLine(message);
+                    string timeStamp = DateTime.Now.ToString("HH:mm");
+                    Console.WriteLine($"{Username} ({timeStamp}): {message}");
 
                     if (message.StartsWith("->"))
                     {
