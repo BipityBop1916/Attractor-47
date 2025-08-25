@@ -147,22 +147,41 @@ internal class ChatClient
     {
         var handshakeTask = Task.Run(async () =>
         {
-            string userName;
             while (true)
             {
-                Console.Write("enter username: ");
-                userName = Console.ReadLine();
+                string? serverMessage = await reader.ReadLineAsync();
+                if (serverMessage == null) break;
 
-                await writer.WriteLineAsync(userName);
-                await writer.FlushAsync();
-
-                string response = await reader.ReadLineAsync();
-                if (response == null) return false;
-
-                if (response == "ok")
+                if (serverMessage.StartsWith("enter username"))
+                {
+                    Console.Write("username: ");
+                    string? username = Console.ReadLine();
+                    await writer.WriteLineAsync(username);
+                    await writer.FlushAsync();
+                }
+                else if (serverMessage.StartsWith("user not found"))
+                {
+                    Console.Write("register? (y/n): ");
+                    string? answer = Console.ReadLine();
+                    await writer.WriteLineAsync(answer);
+                    await writer.FlushAsync();
+                }
+                else if (serverMessage.StartsWith("enter password"))
+                {
+                    Console.Write("password: ");
+                    string? password = Console.ReadLine();
+                    await writer.WriteLineAsync(password);
+                    await writer.FlushAsync();
+                }
+                else if (serverMessage == "ok")
+                {
+                    Console.WriteLine("successfully logged in!");
                     break;
-
-                Console.WriteLine($"server: {response}");
+                }
+                else
+                {
+                    Console.WriteLine($"server: {serverMessage}");
+                }
             }
 
             string usersOnline = await reader.ReadLineAsync();

@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using serverprogram;
 
 var server = new Server();
 await server.Start();
@@ -30,30 +31,79 @@ class Client
         try
         {
             string? userName;
+            User? user = null;
+            int attempts = 0;
+
+            await Writer.WriteLineAsync("enter username:");
+            await Writer.FlushAsync();
+            
             while (true)
             {
-                userName = await Reader.ReadLineAsync();
-                Console.WriteLine($"received username: '{userName}'");
+                string? username = await Reader.ReadLineAsync();
+                Console.WriteLine($"received username: '{username}'");
 
-                if (string.IsNullOrWhiteSpace(userName))
+                if (string.IsNullOrWhiteSpace(username))
                 {
-                    await Writer.WriteLineAsync("cant be null or empty");
+                    await Writer.WriteLineAsync("username cannot be empty");
                     await Writer.FlushAsync();
                     continue;
                 }
 
-                if (_server.IsUsernameTaken(userName))
-                {
-                    await Writer.WriteLineAsync("taken");
-                    await Writer.FlushAsync();
-                    continue;
-                }
+                user = UserManager.GetUser(username);
 
-                break;
+                if (user != null)
+                {
+                    while (attempts < 3)
+                    {
+                        await Writer.WriteLineAsync("enter password:");
+                        await Writer.FlushAsync();
+
+                        string? password = await Reader.ReadLineAsync();
+                        if (password == user.Password) break;
+
+                        attempts++;
+                        await Writer.WriteLineAsync($"wrong password ({attempts}/3)");
+                        await Writer.FlushAsync();
+                    }
+
+                    if (attempts >= 3)
+                    {
+                        await Writer.WriteLineAsync("too many wrong attempts. disconnecting...");
+                        await Writer.FlushAsync();
+                        Close();
+                        return;
+                    }
+
+                    break;
+                }
+                else
+                {
+                    await Writer.WriteLineAsync("user not found. register? (y/n)");
+                    await Writer.FlushAsync();
+
+                    string? answer = await Reader.ReadLineAsync();
+                    if (answer?.ToLower() == "y")
+                    {
+                        await Writer.WriteLineAsync("enter password:");
+                        await Writer.FlushAsync();
+                        string? newPassword = await Reader.ReadLineAsync();
+
+                        UserManager.AddUser(username, newPassword);
+                        user = UserManager.GetUser(username);
+                        break;
+                    }
+                    else
+                    {
+                        await Writer.WriteLineAsync("enter a different username");
+                        await Writer.FlushAsync();
+                        continue;
+                    }
+                }
             }
 
             await Writer.WriteLineAsync("ok");
             await Writer.FlushAsync();
+            userName = user!.Username;
 
             var otherUsers = _server.GetUsernamesExcept(Username);
             string userList = otherUsers.Any() ? string.Join(", ", otherUsers) : "no other users online.";
